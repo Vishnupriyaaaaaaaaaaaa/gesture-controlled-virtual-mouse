@@ -1,157 +1,159 @@
 import cv2
 import mediapipe as mp
-from pynput.mouse import Button, Controller
 import numpy as np
-
-mouse = Controller()
-
+from pynput.mouse import Button, Controller
 import ctypes
-user32 = ctypes.windll.user32
-screen_width, screen_height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+import time
 
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=1,
-    min_detection_confidence=0.7,
-    min_tracking_confidence=0.7,
-)
+class HandGestureMouseController:
+    def __init__(self, screen_width, screen_height, smoothing=5):
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.smoothing = smoothing
+        self.prev_x, self.prev_y = 0, 0
+        self.curr_x, self.curr_y = 0, 0
+        self.mouse = Controller()
 
-mp_draw = mp.solutions.drawing_utils
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=1,
+            min_detection_confidence=0.7,
+            min_tracking_confidence=0.7,
+        )
+        self.mp_draw = mp.solutions.drawing_utils
 
-def distance(point1, point2):
-    return np.linalg.norm(np.array(point1) - np.array(point2))
+        self.last_left_click_time = 0
+        self.last_right_click_time = 0
+        self.click_delay = 0.5  
 
-def finger_states(hand_landmarks):
-    """
-    Returns a list of finger states (True for extended, False for folded)
-    Thumb: Compare tip and IP landmarks (x-axis)
-    Other fingers: Compare tip and PIP landmarks (y-axis)
-    """
-    tips_ids = [4, 8, 12, 16, 20]
-    states = []
+    def finger_states(self, hand_landmarks):
+        tips_ids = [4, 8, 12, 16, 20]
+        states = []
 
-    
-    if hand_landmarks.landmark[tips_ids[0]].x < hand_landmarks.landmark[tips_ids[0] - 1].x:
-        states.append(True)
-    else:
-        states.append(False)
+        if hand_landmarks.landmark[tips_ids[0]].x < hand_landmarks.landmark[tips_ids[0] - 1].x:
+            states.append(True)
+        else:
+            states.append(False)
 
-    for id in range(1, 5):
-        tip_y = hand_landmarks.landmark[tips_ids[id]].y
-        pip_y = hand_landmarks.landmark[tips_ids[id] - 2].y
-        states.append(tip_y < pip_y)  
-    
-    return states  
-def detect_gesture(hand_landmarks):
-    """
-    Detect gesture based on finger states and landmarks.
-    Gestures:
-      - 'fist': All fingers folded
-      - 'palm': All fingers extended
-      - 'ok': Thumb and index finger tips close, others folded
-      - 'peace': Index and middle extended, others folded
-      - 'peace_inverted': Middle and ring extended, others folded
-      - 'three2': Index, middle, ring extended, others folded
-    """
+        for id in range(1, 5):
+            tip_y = hand_landmarks.landmark[tips_ids[id]].y
+            pip_y = hand_landmarks.landmark[tips_ids[id] - 2].y
+            states.append(tip_y < pip_y)
 
-    fingers = finger_states(hand_landmarks)
-    
-    thumb_tip = np.array([hand_landmarks.landmark[4].x, hand_landmarks.landmark[4].y])
-    index_tip = np.array([hand_landmarks.landmark[8].x, hand_landmarks.landmark[8].y])
-    thumb_index_dist = np.linalg.norm(thumb_tip - index_tip)
+        return states
 
-    if fingers == [False, False, False, False, False]:
-        return 'fist'
+    def detect_gesture(self, hand_landmarks):
+        fingers = self.finger_states(hand_landmarks)
 
-   
-    if fingers == [True, True, True, True, True]:
-        return 'palm'
+        if fingers == [False, False, False, False, False]:
+            return 'fist'
+        if fingers == [True, True, True, True, True]:
+            return 'palm'
+        if fingers == [True, False, False, False, False]:
+            return 'thumbs_up' 
+        if fingers == [False, True, True, False, False]:
+            return 'peace'
+        if fingers == [False, False, True, True, False]:
+            return 'peace_inverted'
+        if fingers == [False, True, True, True, False]:
+            return 'three2'
+        return 'unknown'
 
-    
-    if thumb_index_dist < 0.05 and fingers[2] == False and fingers[3] == False and fingers[4] == False:
-        return 'ok'
+    def move_mouse(self, x, y):
+        self.curr_x = self.prev_x + (x - self.prev_x) / self.smoothing
+        self.curr_y = self.prev_y + (y - self.prev_y) / self.smoothing
 
+        self.mouse.position = (int(self.curr_x), int(self.curr_y))
 
-    if fingers == [False, True, True, False, False]:
-        return 'peace'
+        self.prev_x, self.prev_y = self.curr_x, self.curr_y
 
-    
-    if fingers == [False, False, True, True, False]:
-        return 'peace_inverted'
+    def click_left(self):
+        now = time.time()
+        if now - self.last_left_click_time > self.click_delay:
+            self.mouse.click(Button.left, 1)
+            self.last_left_click_time = now
 
-    if fingers == [False, True, True, True, False]:
-        return 'three2'
+    def click_right(self):
+        now = time.time()
+        if now - self.last_right_click_time > self.click_delay:
+            self.mouse.click(Button.right, 1)
+            self.last_right_click_time = now
 
-    return 'unknown'
+    def scroll_up(self):
+        self.mouse.scroll(0, 2)
 
-def main():
-    cap = cv2.VideoCapture(0)
+    def scroll_down(self):
+        self.mouse.scroll(0, -2)
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    def run(self):
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            print("Error: Could not open webcam.")
+            return
 
-        frame = cv2.flip(frame, 1)
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Failed to grab frame.")
+                break
 
-        results = hands.process(rgb_frame)
+            frame = cv2.flip(frame, 1)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.hands.process(rgb_frame)
 
-        if results.multi_hand_landmarks:
-            hand_landmarks = results.multi_hand_landmarks[0]
+            if results.multi_hand_landmarks:
+                hand_landmarks = results.multi_hand_landmarks[0]
+                self.mp_draw.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
 
-            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                gesture = self.detect_gesture(hand_landmarks)
 
-            gesture = detect_gesture(hand_landmarks)
+                index_tip = hand_landmarks.landmark[8]
+                x = int(index_tip.x * self.screen_width)
+                y = int(index_tip.y * self.screen_height)
 
-          
-            if gesture == 'palm':
-                index_finger_tip = hand_landmarks.landmark[8]
-                x = int(index_finger_tip.x * screen_width)
-                y = int(index_finger_tip.y * screen_height)
-                mouse.position = (x, y)
-                cv2.putText(frame, "Move Mouse", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+                if gesture == 'palm':
+                    self.move_mouse(x, y)
+                    cv2.putText(frame, "Move Mouse", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            elif gesture == 'fist':
-                mouse.press(Button.left)
-                mouse.release(Button.left)
-                cv2.putText(frame, "Left Click (Fist)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+                elif gesture == 'fist':
+                    self.click_left()
+                    cv2.putText(frame, "Left Click (Fist)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            elif gesture == 'ok':
-                mouse.press(Button.right)
-                mouse.release(Button.right)
-                cv2.putText(frame, "Right Click (OK)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
+                elif gesture == 'thumbs_up':
+                    self.click_right()
+                    cv2.putText(frame, "Right Click (Thumbs Up)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-            elif gesture == 'peace':
-                mouse.click(Button.left, 2)  # double click
-                cv2.putText(frame, "Double Click (Peace)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,0), 2)
+                elif gesture == 'peace':
+                    self.click_left()
+                    self.click_left()  
+                    cv2.putText(frame, "Double Click (Peace)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
 
-            elif gesture == 'peace_inverted':
-                # Scroll up as example
-                mouse.scroll(0, 2)
-                cv2.putText(frame, "Scroll Up (Peace Inverted)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2)
+                elif gesture == 'peace_inverted':
+                    self.scroll_up()
+                    cv2.putText(frame, "Scroll Up (Peace Inverted)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
-            elif gesture == 'three2':
-                # Scroll down as example
-                mouse.scroll(0, -2)
-                cv2.putText(frame, "Scroll Down (Three2)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,255), 2)
+                elif gesture == 'three2':
+                    self.scroll_down()
+                    cv2.putText(frame, "Scroll Down (Three2)", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 2)
+
+                else:
+                    cv2.putText(frame, f"Gesture: {gesture}", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 200, 200), 2)
 
             else:
-                cv2.putText(frame, f"Gesture: {gesture}", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (200, 200, 200), 2)
+                cv2.putText(frame, "No Hand Detected", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-        else:
-            cv2.putText(frame, "No Hand Detected", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+            cv2.imshow("Virtual Mouse", frame)
 
-        cv2.imshow("Virtual Mouse", frame)
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q'):
+                break
 
-        key = cv2.waitKey(1)
-        if key & 0xFF == ord('q'):
-            break
+        cap.release()
+        cv2.destroyAllWindows()
 
-    cap.release()
-    cv2.destroyAllWindows()
-
-if __name__ == '__main__':
-    main()
-
+if __name__ == "__main__":
+    user32 = ctypes.windll.user32
+    screen_w, screen_h = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    controller = HandGestureMouseController(screen_w, screen_h)
+    controller.run()

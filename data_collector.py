@@ -40,10 +40,8 @@ class GestureDataCollector:
                     self.mp_drawing.draw_landmarks(
                         frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
                     
-                    # Extract landmarks
                     landmarks = [[lm.x, lm.y] for lm in hand_landmarks.landmark]
                     
-                    # Display info
                     cv2.putText(frame, f"Gesture: {gesture_name}", (10, 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                     cv2.putText(frame, f"Samples: {self.sample_count}", (10, 60),
@@ -55,7 +53,7 @@ class GestureDataCollector:
             
             key = cv2.waitKey(1) & 0xFF
             if key == ord(' ') and results.multi_hand_landmarks:
-                # Save landmark data
+        
                 timestamp = str(datetime.now().timestamp())
                 self.collected_data[f"{gesture_name}_{timestamp}"] = {
                     "landmarks": [landmarks]
@@ -79,12 +77,11 @@ def main():
         collector.sample_count = 0
         collector.collected_data = {}
         
-        print(f"\n--- Collecting data for {gesture} ---")
-        input("Press Enter to start collecting...")
+        print(f"\n Collecting data for {gesture} ")
+        input("Press Enter to start collecting")
         
         collector.collect_data(gesture)
         
-        # Save data
         filename = f"../datasets/{gesture}.json"
         with open(filename, 'w') as f:
             json.dump(collector.collected_data, f, indent=2)

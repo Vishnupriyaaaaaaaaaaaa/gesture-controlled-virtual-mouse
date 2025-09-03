@@ -3,8 +3,7 @@ import mediapipe as mp
 import json
 import os
 
-# 👇 Change this per gesture you want to collect
-GESTURE_NAME = "three2"  # Change to "ok", "palm", "peace", etc.
+GESTURE_NAME = "three2"  # Change this per gesture you want to collect
 SAVE_PATH = f"datasets/{GESTURE_NAME}.json"
 
 mp_hands = mp.solutions.hands
@@ -15,12 +14,11 @@ cap = cv2.VideoCapture(0)
 dataset = {}
 count = 0
 
-# Create datasets folder if it doesn't exist
 if not os.path.exists("datasets"):
     os.makedirs("datasets")
 
 print(f"Recording gesture: {GESTURE_NAME}")
-print("▶ Press 's' to save frame, 'q' to quit.\n")
+print(" Press 's' to save frame, 'q' to quit.\n")
 
 while True:
     ret, frame = cap.read()
@@ -35,7 +33,6 @@ while True:
         for hand_landmarks in results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-    # Show sample count on screen
     cv2.putText(frame, f"Gesture: {GESTURE_NAME} | Samples: {count}", (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
@@ -52,10 +49,9 @@ while True:
         dataset[f"{GESTURE_NAME}_{count}"] = {"landmarks": [landmarks]}
         count += 1
 
-# Save dataset
 with open(SAVE_PATH, "w") as f:
     json.dump(dataset, f, indent=2)
 
-print(f"\n✅ Saved {count} samples to: {SAVE_PATH}")
+print(f"\n Saved {count} samples to: {SAVE_PATH}")
 cap.release()
 cv2.destroyAllWindows()
