@@ -28,7 +28,7 @@ You can install the dependencies using pip:
 pip install opencv-python mediapipe pynput numpy
 
 
-USAGE
+USAGE:
 Clone this repository or download the script.
 
 Run the script:
