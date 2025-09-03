@@ -26,8 +26,9 @@ A Python application that uses computer vision and hand gestures to control your
 You can install the dependencies using pip:
 
 pip install opencv-python mediapipe pynput numpy
-Usage
 
+
+USAGE
 Clone this repository or download the script.
 
 Run the script:
