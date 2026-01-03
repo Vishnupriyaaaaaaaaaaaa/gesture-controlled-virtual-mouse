@@ -1,0 +1,13 @@
+name: virt_gesture_mouse_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - numpy
+  - opencv
+  - scikit-learn
+  - pip
+  - pip:
+      - mediapipe
+      - tensorflow
+      - pyautogui
