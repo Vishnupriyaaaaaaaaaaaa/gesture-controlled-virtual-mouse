@@ -48,8 +48,12 @@ conda env create -f environment.yml
 conda activate [environment-name]
 ```
 
-3. Download the pre-trained model:
-The model file (model.h5) should be placed in the root directory of the project.
+3. Pre-trained model and datasets:
+
+- The pre-trained model (model.h5) is included in this repository.
+- The datasets are too large to host on GitHub.
+- Download them from Google Drive and place them in a folder named datasets/ in the project root.
+Datasets: https://drive.google.com/drive/folders/1x3Eq0ZM-OMumPrfos8DCGbFoBRw6R-by?usp=sharing
 
 ## Usage
 
@@ -92,7 +96,6 @@ The model has been trained and evaluated on a diverse dataset of hand gestures. 
 ├── gesture_mouse.py      # Main application code
 ├── model.h5             # Pre-trained model
 ├── environment.yml      # Conda environment configuration
-├── datasets/           # Training and testing datasets
 └── test_reports/       # Model evaluation metrics and graphs
     ├── model_metrics.json
     ├── model_summary.txt
